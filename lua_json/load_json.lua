@@ -9,7 +9,7 @@ local function pop_string(json_text)
     end
     local next_q = json_text:find(q_char, 2, true)
     local bslashs = json_text:sub(2, next_q-1):match("[\\]*$")
-    while bslashs and #bslashs % 2 == 0 do
+    while bslashs and #bslashs % 2 == 1 do
         local last_q = next_q
         next_q = json_text:find(q_char, next_q+1, true)
         bslashs = json_text:sub(last_q+1, next_q-1):match("[\\]*$")
@@ -20,13 +20,10 @@ local function pop_string(json_text)
 end
 
 
-local NUMBER_PAT = "^[%d.eE+-]*"
-
-
 ---@param json_text string
 ---@return number, string
 local function pop_num(json_text)
-    local num_str = json_text:match(NUMBER_PAT)
+    local num_str = json_text:match("^[%d.eE+-]*")
     local rest = json_text:sub(#num_str+1)
     local num = tonumber(num_str)
     if not num then
@@ -58,10 +55,12 @@ local function drop_char(text, char)
     if not char then
         char = ","
     end
+    text = text:gsub("%s*", "")
+    if text:sub(1, 1) == char then
+        text = text:sub(2)
+    end
+    text = text:gsub("%s*", "")
     return text
-        :match("^%s*(.*)")
-        :match("^,(.*)")
-        :match("^%s*(.*)")
 end
 
 
@@ -76,7 +75,7 @@ local function pop_array(json_text)
         error(open_brac .. " is not a valid array opening bracket")
     end
     local array = {}
-    json_text = json_text:match("^%s*(.*)")
+    json_text = drop_char(json_text, "[")
     while json_text:sub(1, 1) ~= "]" do
         local val
         val, json_text = dispatch_json_type(json_text)
@@ -97,6 +96,7 @@ local function pop_object(json_text)
         error(open_brac .. " is not a valid object opening bracket")
     end
     local object = {}
+    json_text = drop_char(json_text, "{")
     while json_text:sub(1, 1) ~= "}" do
         local key, val
         key, json_text = pop_string(json_text)
@@ -117,7 +117,7 @@ dispatch_json_type = function (json_text)
     local next_c = json_text:sub(1, 1)
     if next_c:find("[\"']") then
         return pop_string(json_text)
-    elseif next_c:find(NUMBER_PAT) then
+    elseif next_c:find("^[%d-+.]") then
         return pop_num(json_text)
     elseif next_c:find("[tfn]") then
         return pop_bool(json_text)

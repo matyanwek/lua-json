@@ -45,36 +45,77 @@ local function dump_bool(b)
 end
 
 
+---@param s string
+---@param n number
+---@return string
+local function mult_str(s, n)
+    local output = ""
+    for _ = 1, n do
+        output = output .. s
+    end
+    return output
+end
+
+
+-- forward declaration
 local dispatch_lua_type
 
 
 ---@param a any[]
+---@param depth number
+---@param indent string?
 ---@return string
-local function dump_array(a)
+local function dump_array(a, depth, indent)
+    local init_sep, cat_sep, final_sep
+    if indent then
+        init_sep = "\n" .. mult_str(indent, depth + 1)
+        cat_sep =  ",\n" .. mult_str(indent, depth + 1)
+        final_sep = "\n" .. mult_str(indent, depth)
+    else
+        init_sep = ""
+        cat_sep =  ","
+        final_sep = ""
+    end
     local vals = {}
     for _, val in ipairs(a) do
-        table.insert(vals, dispatch_lua_type(val))
+        table.insert(vals, dispatch_lua_type(val, depth+1, indent))
     end
-    return ("[%s]"):format(table.concat(vals, ", "))
+    return "[" .. init_sep .. table.concat(vals, cat_sep) .. final_sep .. "]"
 end
 
 
 ---@param o table
+---@param depth number
+---@param indent string?
 ---@return string
-local function dump_object(o)
+local function dump_object(o, depth, indent)
+    local init_sep, kv_sep, cat_sep, final_sep
+    if indent then
+        init_sep = "\n" .. mult_str(indent, depth + 1)
+        kv_sep = ": "
+        cat_sep =  ",\n" .. mult_str(indent, depth + 1)
+        final_sep = "\n" .. mult_str(indent, depth)
+    else
+        init_sep = ""
+        kv_sep = ":"
+        cat_sep =  ","
+        final_sep = ""
+    end
     local kv_strs = {}
     for key, val in pairs(o) do
         local key_str = dump_string(key)
-        local val_str = dispatch_lua_type(val)
-        table.insert(kv_strs, ("%s: %s"):format(key_str, val_str))
+        local val_str = dispatch_lua_type(val, depth+1, indent)
+        table.insert(kv_strs, key_str .. kv_sep .. val_str)
     end
-    return ("{%s}"):format(table.concat(kv_strs, ", "))
+    return "{" .. init_sep .. table.concat(kv_strs, cat_sep) .. final_sep .. "}"
 end
 
 
 ---@param lua_obj any
+---@param depth number
+---@param indent string?
 ---@return string
-dispatch_lua_type = function (lua_obj)
+dispatch_lua_type = function (lua_obj, depth, indent)
     local type = type(lua_obj)
     if type == "string" then
         return dump_string(lua_obj)
@@ -84,9 +125,9 @@ dispatch_lua_type = function (lua_obj)
         return dump_bool(lua_obj)
     elseif type == "table" then
         if is_array(lua_obj) then
-            return dump_array(lua_obj)
+            return dump_array(lua_obj, depth, indent)
         else
-            return dump_object(lua_obj)
+            return dump_object(lua_obj, depth, indent)
         end
     else
         error(tostring(lua_obj) .. " is not a valid JSON type")
@@ -95,7 +136,8 @@ end
 
 
 ---@param lua_obj any
+---@param indent string?
 ---@return string
-return function(lua_obj)
-    return dispatch_lua_type(lua_obj)
+return function(lua_obj, indent)
+    return dispatch_lua_type(lua_obj, 0, indent)
 end
